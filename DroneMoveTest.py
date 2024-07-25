@@ -14,15 +14,7 @@ try:
     
     # Move to a position
     print("Moving to position...")
-    client.moveToPositionAsync(-10, 10, -10, 5).join()
-    
-    # Hover for a few seconds
-    print("Hovering...")
-    time.sleep(5)
-    
-    # Move to another position
-    print("Moving to another position...")
-    client.moveToPositionAsync(0, 0, -10, 5).join()
+    client.moveToPositionAsync(10, 0, 0, 5).join()
     
     # Hover for a few seconds
     print("Hovering...")
