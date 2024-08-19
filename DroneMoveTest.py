@@ -9,7 +9,7 @@ class QuadrotorPotentialField:
         self.client.enableApiControl(True)
         self.client.armDisarm(True)
 
-        self.lidar_name = "LidarFront"
+        
 
        
         self.q_repel = 50  
@@ -21,8 +21,6 @@ class QuadrotorPotentialField:
         self.min_height = -1.5 
         self.max_height = -3.0 
 
-    def get_lidar_data(self):
-        return self.client.getLidarData(lidar_name=self.lidar_name)
 
     def process_lidar_data(self, lidar_data):
         if lidar_data.point_cloud:
