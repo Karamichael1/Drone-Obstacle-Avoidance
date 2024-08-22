@@ -53,14 +53,14 @@ class DStarLite:
         Node(-1, -1, math.sqrt(2))
     ]
 
-    def __init__(self, ox: list, oy: list, x_min=None, y_min=None, x_max=None, y_max=None):
+    def __init__(self, ox: list, oy: list):
         # Ensure that within the algorithm implementation all node coordinates
         # are indices in the grid and extend
         # from 0 to abs(<axis>_max - <axis>_min)
-        self.x_min_world = x_min if x_min is not None else int(min(ox))
-        self.y_min_world = y_min if y_min is not None else int(min(oy))
-        self.x_max = x_max if x_max is not None else int(abs(max(ox) - self.x_min_world))
-        self.y_max = y_max if y_max is not None else int(abs(max(oy) - self.y_min_world))
+        self.x_min_world = int(min(ox))
+        self.y_min_world = int(min(oy))
+        self.x_max = int(abs(max(ox) - self.x_min_world))
+        self.y_max = int(abs(max(oy) - self.y_min_world))
         self.obstacles = [Node(x - self.x_min_world, y - self.y_min_world)
                           for x, y in zip(ox, oy)]
         self.obstacles_xy = np.array(

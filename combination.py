@@ -1,138 +1,169 @@
-import numpy as np
 import math
-from DStarLite import DStarLite, Node
-from dynamicwindow2D import Config, dwa_control, RobotType
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.spatial import distance
 
-class HybridPlanner:
-    def __init__(self, start, goal, static_obstacles, dynamic_obstacles):
-        self.start = start
-        self.goal = goal
+# Import A* related classes and functions
+from AStar import AStarPlanner
+
+# Import DWA related classes and functions
+from dynamicwindow2D import Config, RobotType, dwa_control, motion, plot_robot, plot_arrow
+
+show_animation = True
+
+class AStarDWAAgent:
+    def __init__(self, static_obstacles, resolution, robot_radius):
         self.static_obstacles = static_obstacles
-        self.dynamic_obstacles = dynamic_obstacles
-        self.config = Config()
+        ox = [obs[0] for obs in static_obstacles]
+        oy = [obs[1] for obs in static_obstacles]
+        self.a_star = AStarPlanner(ox, oy, resolution, robot_radius)
+        self.dwa_config = Config()
+        self.dwa_config.robot_type = RobotType.circle
+        self.dwa_config.robot_radius = robot_radius
+        self.dwa_config.max_speed = 3.0
         
-        # Calculate grid size based on start and goal positions
-        max_x = max(start[0], goal[0], np.max(static_obstacles[:, 0]), np.max(dynamic_obstacles[:, 0])) + 10
-        max_y = max(start[1], goal[1], np.max(static_obstacles[:, 1]), np.max(dynamic_obstacles[:, 1])) + 10
-        min_x = min(start[0], goal[0], np.min(static_obstacles[:, 0]), np.min(dynamic_obstacles[:, 0])) - 10
-        min_y = min(start[1], goal[1], np.min(static_obstacles[:, 1]), np.min(dynamic_obstacles[:, 1])) - 10
+    def plan_path(self, sx, sy, gx, gy):
+        rx, ry = self.a_star.planning(sx, sy, gx, gy)
+        return list(reversed(rx)), list(reversed(ry))
+    
+    def move_to_goal(self, start, goal, path, dynamic_obstacles):
+        x = np.array(start + [math.pi / 8.0, 0.0, 0.0])  # initial state [x, y, yaw, v, omega]
+        trajectory = np.array(x)
+        rx, ry = path
         
-        # Initialize DStarLite with appropriate grid size
-        self.dstar = DStarLite(static_obstacles[:, 0], static_obstacles[:, 1], x_min=min_x, y_min=min_y, x_max=max_x, y_max=max_y)
-        self.current_path = None
-        self.using_dwa = False
-
-    def plan(self):
-        # Initial D* Lite planning
-        success, pathx, pathy = self.dstar.main(Node(x=self.start[0], y=self.start[1]),
-                                                Node(x=self.goal[0], y=self.goal[1]),
-                                                [], [])
-        if not success:
-            return None
-        self.current_path = list(zip(pathx, pathy))
-        
-        # Main planning loop
-        x = np.array([self.start[0], self.start[1], 0.0, 0.0, 0.0])  # x, y, yaw, v, omega
-        trajectory = [x[:2]]
-        
-        while not self.goal_reached(x[:2]):
-            if self.collision_imminent(x[:2]):
-                # Switch to DWA
-                self.using_dwa = True
-                u, _ = dwa_control(x, self.config, self.goal, self.get_all_obstacles())
-                x = self.motion(x, u, self.config.dt)
+        target_ind = 0
+        time = 0
+        while True:
+            if target_ind < len(rx) - 1:
+                local_goal = [rx[target_ind], ry[target_ind]]
             else:
-                # Follow D* Lite path
-                self.using_dwa = False
-                next_point = self.get_next_point(x[:2])
-                if next_point is None:
-                    # Replan with D* Lite
-                    success, pathx, pathy = self.dstar.main(Node(x=x[0], y=x[1]),
-                                                            Node(x=self.goal[0], y=self.goal[1]),
-                                                            [], [])
-                    if not success:
-                        return None
-                    self.current_path = list(zip(pathx, pathy))
-                    next_point = self.get_next_point(x[:2])
-                
-                direction = math.atan2(next_point[1] - x[1], next_point[0] - x[0])
-                u = [self.config.max_speed, self.angle_diff(direction, x[2])]
-                x = self.motion(x, u, self.config.dt)
+                local_goal = goal
             
-            trajectory.append(x[:2])
-            self.update_dynamic_obstacles()
+            # Update dynamic obstacles
+            current_obstacles = self.update_obstacles(time, dynamic_obstacles)
+            
+            # Check for nearby dynamic obstacles
+            nearby_obstacle = self.check_nearby_obstacles(x, current_obstacles)
+            
+            if nearby_obstacle:
+                # Use DWA for local avoidance
+                u, predicted_trajectory = dwa_control(x, self.dwa_config, local_goal, current_obstacles)
+            else:
+                # Move towards A* path
+                direction = math.atan2(local_goal[1] - x[1], local_goal[0] - x[0])
+                u = [self.dwa_config.max_speed, 0.0]  # [speed, yaw_rate]
+            
+            x = motion(x, u, self.dwa_config.dt)
+            trajectory = np.vstack((trajectory, x))
+            
+            # Update target index
+            dist_to_target = math.hypot(x[0] - rx[target_ind], x[1] - ry[target_ind])
+            if dist_to_target <= self.dwa_config.robot_radius:
+                target_ind += 1
+            
+            if show_animation:
+                plt.cla()
+                plt.plot(rx, ry, "-r", linewidth=2)
+                if nearby_obstacle:
+                    plt.plot(predicted_trajectory[:, 0], predicted_trajectory[:, 1], "-g")
+                plt.plot(x[0], x[1], "xr")
+                plt.plot(goal[0], goal[1], "xb")
+                self.plot_obstacles(current_obstacles)
+                plot_robot(x[0], x[1], x[2], self.dwa_config)
+                plot_arrow(x[0], x[1], x[2])
+                plt.axis("equal")
+                plt.grid(True)
+                plt.pause(0.0001)
+            
+            # Check if goal is reached
+            dist_to_goal = math.hypot(x[0] - goal[0], x[1] - goal[1])
+            if dist_to_goal <= self.dwa_config.robot_radius:
+                print("Goal!!")
+                break
+            
+            time += self.dwa_config.dt
         
         return trajectory
 
-    def collision_imminent(self, position):
-        for obs in self.get_all_obstacles():
-            if np.linalg.norm(position - obs) < self.config.robot_radius * 2:
+    def update_obstacles(self, time, dynamic_obstacles):
+        current_obstacles = self.static_obstacles.copy()
+        for obs in dynamic_obstacles:
+            x = obs['x'] + obs['vx'] * time
+            y = obs['y'] + obs['vy'] * time
+            current_obstacles.append((x, y, obs['radius']))
+        return current_obstacles
+
+    def check_nearby_obstacles(self, x, obstacles):
+        robot_position = x[:2]
+        for obs in obstacles:
+            if distance.euclidean(robot_position, obs[:2]) < self.dwa_config.robot_radius + obs[2] + 2.0:
                 return True
         return False
 
-    def get_all_obstacles(self):
-        return np.vstack((self.static_obstacles, self.dynamic_obstacles))
+    def plot_obstacles(self, obstacles):
+        for obs in obstacles:
+            circle = plt.Circle((obs[0], obs[1]), obs[2], fill=False)
+            plt.gca().add_artist(circle)
 
-    def get_next_point(self, position):
-        if not self.current_path:
-            return None
-        for point in self.current_path:
-            if np.linalg.norm(np.array(point) - position) > self.config.robot_radius:
-                return point
-        return None
-
-    def goal_reached(self, position):
-        return np.linalg.norm(position - self.goal) < self.config.robot_radius
-
-    def update_dynamic_obstacles(self):
-        # Simple random movement for dynamic obstacles
-        for i in range(len(self.dynamic_obstacles)):
-            self.dynamic_obstacles[i] += np.random.uniform(-0.5, 0.5, 2)
-
-    @staticmethod
-    def motion(x, u, dt):
-        # Simple motion model
-        x[2] += u[1] * dt
-        x[0] += u[0] * math.cos(x[2]) * dt
-        x[1] += u[0] * math.sin(x[2]) * dt
-        x[3] = u[0]
-        x[4] = u[1]
-        return x
-
-    @staticmethod
-    def angle_diff(a, b):
-        d = a - b
-        return (d + math.pi) % (2 * math.pi) - math.pi
+def create_random_circular_obstacles(num_obstacles, x_range, y_range, radius_range):
+    obstacles = []
+    for _ in range(num_obstacles):
+        x = np.random.uniform(*x_range)
+        y = np.random.uniform(*y_range)
+        radius = np.random.uniform(*radius_range)
+        obstacles.append((x, y, radius))
+    return obstacles
 
 def main():
-    # Set up environment
-    start = np.array([0, 0])
-    goal = np.array([50, 50])
-    static_obstacles = np.array([[20, 20], [30, 30], [40, 40]])
-    dynamic_obstacles = np.array([[25, 25], [35, 35]])
+    print("AStarDWAAgent simulation start")
+    
+    # Define map size
+    map_size = 50.0
+    
+    # Start and goal position
+    sx, sy = 5.0, 5.0
+    gx, gy = 45.0, 45.0
+    
+    grid_size = 2.0
+    robot_radius = 1.0
 
-    # Create and run planner
-    planner = HybridPlanner(start, goal, static_obstacles, dynamic_obstacles)
-    trajectory = planner.plan()
+    # Set fixed static obstacles
+    static_obstacles = [
+        (10.0, 10.0, 2.0),
+        (20.0, 20.0, 2.0),
+        (30.0, 30.0, 2.0),
+        (40.0, 40.0, 2.0),
+        (15.0, 35.0, 2.0),
+        (35.0, 15.0, 2.0)
+    ]
 
-    if trajectory is None:
-        print("No path found")
-    else:
-        print("Path found")
-        # Visualize the result
-        import matplotlib.pyplot as plt
-        trajectory = np.array(trajectory)
-        plt.figure(figsize=(10, 10))
-        plt.plot(trajectory[:, 0], trajectory[:, 1], '-b', label='Robot Path')
-        plt.plot(start[0], start[1], 'go', label='Start')
-        plt.plot(goal[0], goal[1], 'ro', label='Goal')
-        plt.plot(static_obstacles[:, 0], static_obstacles[:, 1], 'ks', label='Static Obstacles')
-        plt.plot(dynamic_obstacles[:, 0], dynamic_obstacles[:, 1], 'ms', label='Dynamic Obstacles')
-        plt.legend()
-        plt.grid(True)
-        plt.title('Hybrid D* Lite and DWA Path Planning')
-        plt.xlabel('X coordinate')
-        plt.ylabel('Y coordinate')
+    # Set fixed dynamic obstacles
+    dynamic_obstacles = [
+        {'x': 25.0, 'y': 25.0, 'vx': 0.5, 'vy': 0.5, 'radius': 1.5},
+        {'x': 35.0, 'y': 20.0, 'vx': -0.3, 'vy': 0.7, 'radius': 2.0},
+        {'x': 15.0, 'y': 30.0, 'vx': 0.6, 'vy': -0.2, 'radius': 1.8},
+    ]
+    
+    print(f"Start position: ({sx}, {sy})")
+    print(f"Goal position: ({gx}, {gy})")
+    print(f"Static obstacles: {static_obstacles}")
+    print(f"Dynamic obstacles: {dynamic_obstacles}")
+
+    agent = AStarDWAAgent(static_obstacles, grid_size, robot_radius)
+    
+    # Calculate the A* path
+    path = agent.plan_path(sx, sy, gx, gy)
+    
+    if not path[0]:
+        print("No path found. Exiting.")
+        return
+
+    # Start moving along the path
+    trajectory = agent.move_to_goal([sx, sy], [gx, gy], path, dynamic_obstacles)
+    
+    if show_animation:
+        plt.plot(trajectory[:, 0], trajectory[:, 1], "-r")
+        plt.pause(0.0001)
         plt.show()
 
 if __name__ == "__main__":

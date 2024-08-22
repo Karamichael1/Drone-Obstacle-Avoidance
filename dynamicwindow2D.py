@@ -213,7 +213,6 @@ def calc_obstacle_cost(trajectory, ob, config):
     min_r = np.min(r)
     return 1.0 / min_r  # OK
 
-
 def calc_to_goal_cost(trajectory, goal):
     """
         calc to goal cost with angle difference
