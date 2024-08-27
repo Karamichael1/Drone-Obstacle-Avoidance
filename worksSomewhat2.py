@@ -66,7 +66,7 @@ class AStarDWAAgent:
                 plt.plot(x[0], x[1], "xr")
                 plt.plot(goal[0], goal[1], "xb")
                 self.plot_obstacles(current_obstacles)
-                # Removed plot_robot call to remove blue circle
+                
                 plot_arrow(x[0], x[1], x[2])
                 plt.axis("equal")
                 plt.grid(True)
@@ -87,7 +87,7 @@ class AStarDWAAgent:
         for obs in dynamic_obstacles:
             x = obs['x'] + obs['vx'] * time
             y = obs['y'] + obs['vy'] * time
-            current_obstacles.append((x, y, obs['radius']))  # padding
+            current_obstacles.append((x, y, obs['radius']))  
         return current_obstacles
 
     def check_nearby_obstacles(self, x, obstacles):
@@ -114,18 +114,15 @@ def main():
     robot_radius = 1.0
 
     static_obstacles = [
-        (10.0, 10.0, 2.0),
-        (20.0, 20.0, 2.0),
-        (30.0, 30.0, 2.0),
-        (40.0, 37.0, 2.0),
-        (15.0, 35.0, 2.0),
-        (35.0, 15.0, 2.0)
+        (10.0, 10.0, 1.0),
+        (20.0, 20.0, 1.0),
+        (30.0, 26.0, 1.0),
+        (40.0, 42.0, 1.0),
+        (15.0, 35.0, 1.0),
+        (35.0, 15.0, 1.0)
     ]
 
     dynamic_obstacles = [
-        {'x': 25.0, 'y': 25.0, 'vx': 0.5, 'vy': 0.5, 'radius': 1.5},
-        {'x': 35.0, 'y': 20.0, 'vx': -0.3, 'vy': 0.7, 'radius': 2.0},
-        {'x': 15.0, 'y': 30.0, 'vx': 0.6, 'vy': -0.2, 'radius': 1.8},
     ]
     
     print(f"Start position: ({sx}, {sy})")
