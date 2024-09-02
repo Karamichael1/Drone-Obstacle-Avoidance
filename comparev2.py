@@ -149,7 +149,33 @@ def plot_results(results, obstacles, start, goal):
     
     plt.savefig('path_comparison_all_speeds.png', dpi=300, bbox_inches='tight')
     plt.close()
-
+    
+def plot_time_vs_speed(results):
+    plt.figure(figsize=(12, 8))
+    
+    speeds = list(results.keys())
+    algorithms = ['Custom A*', 'DWA', 'A* + DWA']
+    colors = ['r', 'g', 'b']
+    
+    for i, algorithm in enumerate(algorithms):
+        times = []
+        for speed in speeds:
+            if results[speed][i] is not None:
+                times.append(results[speed][i].execution_time)
+            else:
+                times.append(0)  # Use 0 if the algorithm failed
+        
+        plt.plot(speeds, times, f'-{colors[i]}o', label=algorithm)
+    
+    plt.xlabel('Speed')
+    plt.ylabel('Time to Completion (s)')
+    plt.title('Algorithm Performance vs Speed')
+    plt.legend()
+    plt.grid(True)
+    
+    plt.savefig('time_vs_speed_comparison.png', dpi=300, bbox_inches='tight')
+    plt.close()
+    
 def main():
     start = (5.0, 5.0)
     goal = (45.0, 45.0)
@@ -165,7 +191,7 @@ def main():
     
     results = {}
     
-    for speed in np.arange(0.5, 5.5, 0.5):
+    for speed in np.arange(0.5, 10, 0.5):
         print(f"Running simulation with speed: {speed}")
         
         custom_astar_metrics = run_with_timeout(run_custom_astar, (start, goal, obstacles, speed), 60)
@@ -180,7 +206,6 @@ def main():
             else:
                 print(f"{name} - Failed to complete within 60 seconds or encountered an error")
     
-    plot_results(results, obstacles, start, goal)
 
 if __name__ == "__main__":
     main()
