@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
-df = pd.read_csv('results2.csv')
+df = pd.read_csv('algorithm_comparison_results.csv')
 
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 16))
 
