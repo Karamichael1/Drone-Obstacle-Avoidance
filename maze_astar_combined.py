@@ -6,10 +6,36 @@ from LookingGood import AStarDWAAgent
 from customastar import CustomAStarAgent
 from dynamicwindow2D import Config, dwa_control, motion
 
-# Disable matplotlib.pyplot
 import matplotlib
 matplotlib.use('Agg')
+import matplotlib.pyplot as plt_lib
 
+def save_maze_image(maze, start, goal, filename):
+    fig = plt_lib.figure(figsize=(5, 5))
+    plt_lib.imshow(maze, cmap='binary')
+    plt_lib.plot(start[1], start[0], 'go', markersize=8)
+    plt_lib.plot(goal[1], goal[0], 'ro', markersize=8)
+    plt_lib.axis('off')
+    plt_lib.savefig(filename, dpi=300, bbox_inches='tight')
+    plt_lib.close(fig)
+
+def save_all_mazes(mazes, starts, goals, filename):
+    fig, axs = plt_lib.subplots(2, 5, figsize=(25, 10))
+    fig.suptitle('Generated Mazes with Increasing Difficulty', fontsize=16)
+
+    for i, (maze, start, goal) in enumerate(zip(mazes, starts, goals)):
+        row = i // 5
+        col = i % 5
+        axs[row, col].imshow(maze, cmap='binary')
+        axs[row, col].plot(start[1], start[0], 'go', markersize=8)
+        axs[row, col].plot(goal[1], goal[0], 'ro', markersize=8)
+        axs[row, col].set_title(f'Maze {i+1}')
+        axs[row, col].axis('off')
+
+    plt_lib.tight_layout()
+    plt_lib.savefig(filename, dpi=300, bbox_inches='tight')
+    plt_lib.close(fig)
+    
 def run_simulation_astar_dwa(maze, start, goal, num_runs=10):
     resolution = 1.0
     robot_radius = 0.5
@@ -76,7 +102,7 @@ def run_simulation_dwa(maze, start, goal, num_runs=10):
 
     for _ in range(num_runs):
         start_time = time.time()
-        x = np.array(start + [0.0, 0.0, 0.0])
+        x = np.array(list(start) + [0.0, 0.0, 0.0])
         trajectory = np.array(x)
 
         while True:
@@ -107,12 +133,20 @@ def main():
         ("DynamicWindow2D", run_simulation_dwa)
     ]
 
+    mazes = []
+    starts = []
+    goals = []
+
     for algo_name, algo_func in algorithms:
         results = []
         for difficulty in range(1, 11):
             maze = maze_gen.get_maze(difficulty)
             start = maze_gen.start
             goal = maze_gen.goal
+
+            mazes.append(maze)
+            starts.append(start)
+            goals.append(goal)
 
             print(f"Running {algo_name} simulation for maze difficulty {difficulty}...")
             avg_path_length, avg_time = algo_func(maze, start, goal)
@@ -125,6 +159,9 @@ def main():
 
             print(f"Maze {difficulty}: Avg Path Length = {avg_path_length:.2f}, Avg Time = {avg_time:.2f}s")
 
+            # Save individual maze image
+            save_maze_image(maze, start, goal, f'{algo_name.lower()}_maze_{difficulty}.png')
+
         with open(f'{algo_name.lower()}_maze_simulation_results.csv', 'w', newline='') as csvfile:
             fieldnames = ['Difficulty', 'Avg Path Length', 'Avg Time']
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
@@ -134,6 +171,9 @@ def main():
                 writer.writerow(row)
 
         print(f"{algo_name} simulation complete. Results saved to {algo_name.lower()}_maze_simulation_results.csv")
+
+    # Save all mazes in a single image
+    save_all_mazes(mazes[:10], starts[:10], goals[:10], 'all_generated_mazes.png')
 
 if __name__ == "__main__":
     main()
