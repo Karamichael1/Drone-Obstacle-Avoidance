@@ -10,11 +10,15 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt_lib
 
-def save_maze_image(maze, start, goal, filename):
+def save_maze_image_with_trajectory(maze, start, goal, trajectory, filename):
     fig = plt_lib.figure(figsize=(5, 5))
     plt_lib.imshow(maze, cmap='binary')
     plt_lib.plot(start[1], start[0], 'go', markersize=8)
     plt_lib.plot(goal[1], goal[0], 'ro', markersize=8)
+    
+
+    plt_lib.plot(trajectory[:, 1], trajectory[:, 0], 'b-', linewidth=2, alpha=0.7)
+    
     plt_lib.axis('off')
     plt_lib.savefig(filename, dpi=300, bbox_inches='tight')
     plt_lib.close(fig)
@@ -46,6 +50,8 @@ def run_simulation_astar_dwa(maze, start, goal, num_runs=10):
 
     total_path_length = 0
     total_time = 0
+    best_trajectory = None
+    best_path_length = float('inf')
 
     for _ in range(num_runs):
         start_time = time.time()
@@ -56,10 +62,14 @@ def run_simulation_astar_dwa(maze, start, goal, num_runs=10):
         total_path_length += path_length
         total_time += end_time - start_time
 
+        if path_length < best_path_length:
+            best_path_length = path_length
+            best_trajectory = trajectory
+
     avg_path_length = total_path_length / num_runs
     avg_time = total_time / num_runs
 
-    return avg_path_length, avg_time
+    return avg_path_length, avg_time, best_trajectory
 
 def run_simulation_custom_astar(maze, start, goal, num_runs=10):
     grid_size = 1.0
@@ -70,6 +80,8 @@ def run_simulation_custom_astar(maze, start, goal, num_runs=10):
 
     total_path_length = 0
     total_time = 0
+    best_trajectory = None
+    best_path_length = float('inf')
 
     for _ in range(num_runs):
         start_time = time.time()
@@ -84,10 +96,14 @@ def run_simulation_custom_astar(maze, start, goal, num_runs=10):
         total_path_length += path_length
         total_time += end_time - start_time
 
+        if path_length < best_path_length:
+            best_path_length = path_length
+            best_trajectory = trajectory
+
     avg_path_length = total_path_length / num_runs
     avg_time = total_time / num_runs
 
-    return avg_path_length, avg_time
+    return avg_path_length, avg_time, best_trajectory
 
 def run_simulation_dwa(maze, start, goal, num_runs=10):
     config = Config()
@@ -99,11 +115,13 @@ def run_simulation_dwa(maze, start, goal, num_runs=10):
 
     total_path_length = 0
     total_time = 0
+    best_trajectory = None
+    best_path_length = float('inf')
 
     for _ in range(num_runs):
         start_time = time.time()
         x = np.array(list(start) + [0.0, 0.0, 0.0])
-        trajectory = np.array(x)
+        trajectory = np.array([x])
 
         while True:
             u, _ = dwa_control(x, config, goal, ob)
@@ -120,10 +138,14 @@ def run_simulation_dwa(maze, start, goal, num_runs=10):
         total_path_length += path_length
         total_time += end_time - start_time
 
+        if path_length < best_path_length:
+            best_path_length = path_length
+            best_trajectory = trajectory
+
     avg_path_length = total_path_length / num_runs
     avg_time = total_time / num_runs
 
-    return avg_path_length, avg_time
+    return avg_path_length, avg_time, best_trajectory
 
 def main():
     maze_gen = MazeGenerator(50, 50)
@@ -149,7 +171,7 @@ def main():
             goals.append(goal)
 
             print(f"Running {algo_name} simulation for maze difficulty {difficulty}...")
-            avg_path_length, avg_time = algo_func(maze, start, goal)
+            avg_path_length, avg_time, best_trajectory = algo_func(maze, start, goal)
             
             results.append({
                 'Difficulty': difficulty,
@@ -159,8 +181,8 @@ def main():
 
             print(f"Maze {difficulty}: Avg Path Length = {avg_path_length:.2f}, Avg Time = {avg_time:.2f}s")
 
-            # Save individual maze image
-            save_maze_image(maze, start, goal, f'{algo_name.lower()}_maze_{difficulty}.png')
+            # Save individual maze image with trajectory
+            save_maze_image_with_trajectory(maze, start, goal, best_trajectory, f'{algo_name.lower()}_maze_{difficulty}.png')
 
         with open(f'{algo_name.lower()}_maze_simulation_results.csv', 'w', newline='') as csvfile:
             fieldnames = ['Difficulty', 'Avg Path Length', 'Avg Time']
