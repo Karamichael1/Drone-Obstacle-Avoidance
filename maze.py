@@ -6,7 +6,7 @@ class MazeGenerator:
         self.width = width
         self.height = height
         self.start = (1, 1)
-        self.goal = (width - 2, height - 2)
+        self.goal = (width - 6, height - 6)
         self.mazes = self._generate_mazes()
 
     def _generate_mazes(self):
@@ -31,10 +31,10 @@ class MazeGenerator:
                 maze[i, j] = 1
                 added_obstacles += 1
         
-    
+        
         maze[self.start[1], self.start[0]] = 0
         maze[self.goal[1], self.goal[0]] = 0
-        
+    
         return maze
 
     def get_maze(self, difficulty):

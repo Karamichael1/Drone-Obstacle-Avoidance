@@ -25,8 +25,13 @@ class CustomAStar:
         start = (round(start[0] / self.grid_size), round(start[1] / self.grid_size))
         goal = (round(goal[0] / self.grid_size), round(goal[1] / self.grid_size))
 
-        obstacle_set = set((round(obs[0] / self.grid_size), round(obs[1] / self.grid_size))
-                           for obs in obstacles)
+        obstacle_set = set()
+        for obs in obstacles:
+            x, y, radius = obs
+            for dx in range(-int(radius/self.grid_size)-1, int(radius/self.grid_size)+2):
+                for dy in range(-int(radius/self.grid_size)-1, int(radius/self.grid_size)+2):
+                    if dx*dx + dy*dy <= (radius/self.grid_size)**2:
+                        obstacle_set.add((round(x/self.grid_size)+dx, round(y/self.grid_size)+dy))
 
         open_list = []
         closed_set = set()
@@ -64,7 +69,7 @@ class CustomAStar:
                         open_list[idx].f_cost = g_cost + h_cost
                         open_list[idx].parent = current
 
-        return None  # No path found
+        return None # No path found
 
     def heuristic(self, a, b):
         return ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5
