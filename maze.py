@@ -6,7 +6,7 @@ class MazeGenerator:
         self.width = width
         self.height = height
         self.start = (1, 1)
-        self.goal = (width - 6, height - 6)
+        self.goal = (width - 3, height - 3)
         self.mazes = self._generate_mazes()
 
     def _generate_mazes(self):

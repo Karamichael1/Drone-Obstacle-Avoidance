@@ -2,9 +2,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
-astar_df = pd.read_csv('run3/astardwa_maze_simulation_results.csv')
-custom_df = pd.read_csv('run3/customastar_maze_simulation_results.csv')
-
+astar_df = pd.read_csv('run4/astardwa_maze_simulation_results.csv')
+custom_df = pd.read_csv('run4/customastar_maze_simulation_results.csv')
+dynamic_df=pd.read_csv('run4/dynamicwindow2D_maze_simulation_results.csv')
 
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 12))
 
