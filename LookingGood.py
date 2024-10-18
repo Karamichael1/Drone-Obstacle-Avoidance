@@ -20,11 +20,11 @@ class Node:
 class AStarPlanner:
     def __init__(self, ox, oy, resolution, robot_radius):
         self.resolution = resolution
-        self.robot_radius = robot_radius*1.5
+        self.robot_radius = robot_radius
         self.min_x, self.min_y = 0, 0
         self.max_x, self.max_y = 0, 0
         self.obstacle_map = None
-        self.x_width, self.y_width = 1, 1
+        self.x_width, self.y_width = 2, 2
         self.motion = self.get_motion_model()
         self.calc_obstacle_map(ox, oy)
 
@@ -88,7 +88,7 @@ class AStarPlanner:
 
     @staticmethod
     def calc_heuristic(n1, n2):
-        w = 1.0  # weight of heuristic
+        w = 6.0  # weight of heuristic
         d = w * (abs(n1.x - n2.x) + abs(n1.y - n2.y))  
         return d
 
@@ -103,25 +103,6 @@ class AStarPlanner:
         return (node.y - self.min_y) * self.x_width + (node.x - self.min_x)
 
     def verify_node(self, node):
-        # Check if the node is within the bounds and far enough from obstacles
-        px = self.calc_grid_position(node.x, self.min_x)
-        py = self.calc_grid_position(node.y, self.min_y)
-        
-        # Add a buffer around obstacles to avoid being too close
-        buffer_distance = self.robot_radius * 2  # Can adjust this value for tighter or looser avoidance
-        
-        # Check boundaries and proximity to obstacles
-        if px < self.min_x or px >= self.max_x or py < self.min_y or py >= self.max_y:
-            return False
-
-        # Check proximity to obstacles
-        for ox, oy in zip(self.obstacle_map[:,0], self.obstacle_map[:,1]):
-            dist_to_obstacle = np.linalg.norm([px - ox, py - oy])
-            if dist_to_obstacle <= buffer_distance:
-                return False
-
-        return True
-    
         px = self.calc_grid_position(node.x, self.min_x)
         py = self.calc_grid_position(node.y, self.min_y)
 
@@ -175,7 +156,7 @@ class AStarDWAAgent:
         self.dwa_config.robot_type = RobotType.circle
         self.dwa_config.robot_radius = robot_radius
         self.dwa_config.max_speed = max_speed
-        self.collision_check_distance = robot_radius * 1
+        self.collision_check_distance = robot_radius * 3
 
     def plan_path(self, sx, sy, gx, gy):
         return self.a_star.planning(sx, sy, gx, gy)
@@ -205,27 +186,24 @@ class AStarDWAAgent:
             else:
                 local_goal = goal
             
-            # Check for collision
             if self.check_collision(x[:2], current_obstacles):
-             
+               
                 in_dwa_mode = True
                 dwa_start_point = x[:2]
                 u, predicted_trajectory = dwa_control(x, self.dwa_config, local_goal, dwa_obstacles)
             else:
                 if in_dwa_mode:
-                    # Check if the robot has moved far enough from the point where DWA started
+                    # Check if we've moved far enough from the DWA start point
                     if math.hypot(x[0] - dwa_start_point[0], x[1] - dwa_start_point[1]) > self.collision_check_distance:
                         print("DWA avoidance completed. Recalculating A* path.")
                         new_path = self.plan_path(x[0], x[1], goal[0], goal[1])
                         if new_path:
-                            print("New A* path calculated.")
                             rx, ry = new_path
                             target_ind = 0
                             in_dwa_mode = False
                         else:
                             print("Failed to find new A* path. Continuing with current path.")
                 
-                # Continue following the path
                 angle = math.atan2(local_goal[1] - x[1], local_goal[0] - x[0])
                 speed = min(self.dwa_config.max_speed, math.hypot(local_goal[0] - x[0], local_goal[1] - x[1]))
                 u = np.array([speed, angle - x[2]])
@@ -248,7 +226,7 @@ class AStarDWAAgent:
                 self.plot_state(x, goal, rx, ry, predicted_trajectory, current_obstacles, in_dwa_mode)
             
             time += self.dwa_config.dt
-
+        
         return trajectory
 
     def check_collision(self, position, obstacles):
