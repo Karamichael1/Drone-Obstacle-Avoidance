@@ -20,9 +20,10 @@ class MazeGenerator:
     def _create_maze(self, obstacle_count):
         maze = np.zeros((self.height, self.width))
         
+        # Add boundary walls (1s along the edges)
         maze[0, :] = maze[-1, :] = maze[:, 0] = maze[:, -1] = 1
         
-        
+        # Place random obstacles inside the maze grid
         added_obstacles = 0
         while added_obstacles < obstacle_count:
             i = np.random.randint(1, self.height - 1)
@@ -31,7 +32,7 @@ class MazeGenerator:
                 maze[i, j] = 1
                 added_obstacles += 1
         
-        
+        # Ensure the start and goal points are empty
         maze[self.start[1], self.start[0]] = 0
         maze[self.goal[1], self.goal[0]] = 0
     
@@ -49,21 +50,18 @@ class MazeGenerator:
         for i in range(maze.shape[0]):
             for j in range(maze.shape[1]):
                 if maze[i, j] == 1:
-                    obstacles.append((j, i, 0.5))
+                    # Include radius for obstacles
+                    obstacles.append((j, i, 1.5))  # Add a default radius of 0.5 for each obstacle
         return obstacles
 
 if __name__ == "__main__":
     maze_gen = MazeGenerator(50, 50)
     
-    for i in range(1, 11):
-        maze = maze_gen.get_maze(i)
-        obstacle_count = np.sum(maze) - (2 * maze.shape[0] + 2 * maze.shape[1] - 4)  
-        print(f"Maze {i}: Obstacle count = {obstacle_count}")
-
+    # Example of displaying mazes
     fig, axes = plt.subplots(2, 5, figsize=(20, 8))
     for i, ax in enumerate(axes.flat):
         maze = maze_gen.get_maze(i + 1)
-        ax.imshow(maze, cmap='binary')
+        ax.imshow(maze, cmap='binary', origin='lower')  # 'upper' keeps the top-left at (0,0)
         ax.plot(maze_gen.start[0], maze_gen.start[1], 'go', markersize=8, label='Start')
         ax.plot(maze_gen.goal[0], maze_gen.goal[1], 'ro', markersize=8, label='Goal')
         ax.set_title(f"Maze {i + 1}")

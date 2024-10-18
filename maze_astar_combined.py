@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt_lib
 
 def save_maze_image_with_trajectory(maze, start, goal, trajectory, filename):
     fig = plt_lib.figure(figsize=(5, 5))
-    plt_lib.imshow(maze, cmap='binary')
+    plt_lib.imshow(maze, cmap='binary',origin='lower')
     plt_lib.plot(start[1], start[0], 'go', markersize=8)
     plt_lib.plot(goal[1], goal[0], 'ro', markersize=8)
     
@@ -42,7 +42,7 @@ def save_all_mazes(mazes, starts, goals, filename):
     
 def run_simulation_astar_dwa(maze, start, goal, num_runs=10):
     resolution = 1.0
-    robot_radius = 0.5
+    robot_radius = 1
     max_speed = 1.0
 
     obstacles = MazeGenerator.maze_to_obstacles(maze)
@@ -73,7 +73,7 @@ def run_simulation_astar_dwa(maze, start, goal, num_runs=10):
 
 def run_simulation_custom_astar(maze, start, goal, num_runs=10):
     grid_size = 1.0
-    robot_radius = 0.5
+    robot_radius = 1
 
     obstacles = MazeGenerator.maze_to_obstacles(maze)
     agent = CustomAStarAgent(grid_size, robot_radius)
@@ -109,7 +109,7 @@ def run_simulation_custom_astar(maze, start, goal, num_runs=10):
 
 def run_simulation_dwa(maze, start, goal, num_runs=10):
     config = Config()
-    config.robot_radius = 0.5
+    config.robot_radius = 1
     config.max_speed = 1.0
 
     obstacles = MazeGenerator.maze_to_obstacles(maze)
@@ -120,7 +120,7 @@ def run_simulation_dwa(maze, start, goal, num_runs=10):
     best_trajectory = None
     best_path_length = float('inf')
 
-    timeout_limit = 60  # 60 seconds timeout
+    timeout_limit = 90  # 60 seconds timeout
 
     for run_index in range(num_runs):
         print(f"\nStarting run {run_index + 1}/{num_runs}")

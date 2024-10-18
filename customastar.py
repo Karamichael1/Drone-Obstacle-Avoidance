@@ -16,7 +16,7 @@ class Node:
 
 class CustomAStar:
     def __init__(self, grid_size, robot_radius):
-        self.grid_size = grid_size
+        self.grid_size = 0.5 
         self.robot_radius = robot_radius
         self.directions = [(0, 1), (1, 0), (0, -1), (-1, 0),
                            (1, 1), (1, -1), (-1, 1), (-1, -1)]
@@ -27,11 +27,12 @@ class CustomAStar:
 
         obstacle_set = set()
         for obs in obstacles:
-            x, y, radius = obs
-            for dx in range(-int(radius/self.grid_size)-1, int(radius/self.grid_size)+2):
-                for dy in range(-int(radius/self.grid_size)-1, int(radius/self.grid_size)+2):
-                    if dx*dx + dy*dy <= (radius/self.grid_size)**2:
-                        obstacle_set.add((round(x/self.grid_size)+dx, round(y/self.grid_size)+dy))
+           
+            x, y,radius = obs
+            # Mark the obstacle's grid cell as blocked
+            grid_x = round(x / self.grid_size)
+            grid_y = round(y / self.grid_size)
+            obstacle_set.add((grid_x, grid_y))
 
         open_list = []
         closed_set = set()
@@ -71,8 +72,17 @@ class CustomAStar:
 
         return None # No path found
 
-    def heuristic(self, a, b):
-        return ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5
+    def heuristic(self, node, goal, obstacles):
+        dist = np.linalg.norm(np.array(node) - np.array(goal))
+
+        # Additional penalty for proximity to obstacles
+        penalty = 0
+        for obs in obstacles:
+            obs_dist = np.linalg.norm(np.array(node) - np.array(obs))
+            if obs_dist < self.robot_radius * 2:  # Adjust this based on how close you want the penalty to apply
+                penalty += (1 / obs_dist) * 10  # Increase penalty based on proximity
+
+        return dist + penalty
 
     def is_valid(self, pos):
         return pos[0] >= 0 and pos[1] >= 0  # Assuming non-negative grid coordinates
