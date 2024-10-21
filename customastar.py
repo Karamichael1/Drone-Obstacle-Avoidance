@@ -16,13 +16,17 @@ class Node:
         return self.f_cost < other.f_cost or (self.f_cost == other.f_cost and self.h_cost < other.h_cost)
 
 class CustomAStar:
-    def __init__(self, grid_size, robot_radius):
+    def __init__(self, grid_size, robot_radius,map_width, map_height):
         self.grid_size = grid_size
         self.robot_radius = robot_radius
+        self.map_width = map_width
+        self.map_height = map_height
         self.directions = [(0, 1), (1, 0), (0, -1), (-1, 0),
                            (1, 1), (1, -1), (-1, 1), (-1, -1)]
-
+        self.obstacle_influence_distance = 2 * robot_radius
     def plan(self, start, goal, obstacles, visualize=False):
+        self.obstacle_set = set((round(obs[0]/self.grid_size), round(obs[1]/self.grid_size)) 
+                                for obs in obstacles)
         start = (round(start[0] / self.grid_size), round(start[1] / self.grid_size))
         goal = (round(goal[0] / self.grid_size), round(goal[1] / self.grid_size))
 
@@ -41,19 +45,19 @@ class CustomAStar:
         closed_set = set()
         node_dict = {}
 
-        start_node = Node(start, 0, self.heuristic(start, goal), None)
+        start_node = Node(start, 0, self.heuristic(start, goal, obstacles), None)
         heappush(open_list, start_node)
         node_dict[start] = start_node
 
         if visualize:
             fig, ax = plt.subplots(figsize=(10, 10))
-            ax.set_xlim(0, max(node.pos[0] for node in node_dict.values()) + 10)
-            ax.set_ylim(0, max(node.pos[1] for node in node_dict.values()) + 10)
+            ax.set_xlim(0, max(start[0], goal[0]) + 10)
+            ax.set_ylim(0, max(start[1], goal[1]) + 10)
             ax.set_aspect('equal')
             
             # Plot obstacles
             for obs in obstacles:
-                circle = Circle((obs[0]/self.grid_size, obs[1]/self.grid_size), obs[2]/self.grid_size, fill=True, color='red', alpha=0.5)
+                circle = plt.Circle((obs[0]/self.grid_size, obs[1]/self.grid_size), obs[2]/self.grid_size, fill=True, color='red', alpha=0.5)
                 ax.add_artist(circle)
             
             # Plot start and goal
@@ -63,6 +67,12 @@ class CustomAStar:
 
         while open_list:
             current = heappop(open_list)
+            if current.pos == goal:
+                return self.reconstruct_path(current)
+
+            for neighbor in self.get_neighbors(current.pos):
+                if not self.is_valid(neighbor):
+                    continue
 
             if current.pos == goal:
                 path = self.reconstruct_path(current)
@@ -87,39 +97,54 @@ class CustomAStar:
                     continue
 
                 g_cost = current.g_cost + (1.4 if abs(direction[0] + direction[1]) == 2 else 1)
-                
-                if neighbor_pos in node_dict:
-                    neighbor = node_dict[neighbor_pos]
-                    if g_cost < neighbor.g_cost:
-                        neighbor.g_cost = g_cost
-                        neighbor.f_cost = g_cost + neighbor.h_cost
-                        neighbor.parent = current
-                else:
-                    h_cost = self.heuristic(neighbor_pos, goal)
-                    neighbor = Node(neighbor_pos, g_cost, h_cost, current)
+                h_cost = self.heuristic(neighbor_pos, goal, obstacles)
+                neighbor = Node(neighbor_pos, g_cost, h_cost, current)
+
+                if neighbor_pos not in node_dict or g_cost < node_dict[neighbor_pos].g_cost:
                     node_dict[neighbor_pos] = neighbor
                     heappush(open_list, neighbor)
 
-                if visualize:
-                    ax.plot(neighbor_pos[0], neighbor_pos[1], 'co', markersize=3)
+                    if visualize:
+                        ax.plot(neighbor_pos[0], neighbor_pos[1], 'co', markersize=3)
 
         if visualize:
             plt.close(fig)
         return None  # No path found
 
-    def heuristic(self, node, goal):
-        return math.sqrt((node[0] - goal[0])**2 + (node[1] - goal[1])**2)
-
+    
+    def heuristic(self, node, goal, obstacles):
+        base_cost = math.sqrt((node[0] - goal[0])**2 + (node[1] - goal[1])**2)
+        
+        penalty = 0
+        node_pos = np.array(node)
+        for obs in obstacles:
+            obs_pos = np.array(obs[:2])  # Extract only x and y coordinates
+            obs_radius = obs[2]
+            distance = np.linalg.norm(node_pos - obs_pos) - obs_radius - self.robot_radius
+            if distance < self.obstacle_influence_distance:
+                penalty += (self.obstacle_influence_distance - distance) / self.obstacle_influence_distance
+        
+        penalty_weight = 5.0
+        return base_cost + penalty_weight * penalty
+    def get_neighbors(self, pos):
+        x, y = pos
+        return [(x+dx, y+dy) for dx, dy in self.directions 
+                if self.is_valid((x+dx, y+dy))]
+    def is_valid(self, pos):
+        x, y = pos
+        return (0 <= x < self.map_width and 
+                0 <= y < self.map_height and 
+                pos not in self.obstacle_set)
+        
     def reconstruct_path(self, node):
         path = []
         while node:
             path.append((node.pos[0] * self.grid_size, node.pos[1] * self.grid_size))
             node = node.parent
         return list(reversed(path))
-
 class CustomAStarAgent:
-    def __init__(self, grid_size, robot_radius):
-        self.astar = CustomAStar(grid_size, robot_radius)
+    def __init__(self, grid_size, robot_radius,map_width, map_height):
+        self.astar = CustomAStar(grid_size, robot_radius,map_width, map_height)
         self.config = Config()
 
     def plan_path(self, start, goal, obstacles, visualize=False):
@@ -165,7 +190,7 @@ class Config:
         self.max_accel = 0.2
         self.max_dyawrate = 40.0 * math.pi / 180.0
         self.dt = 0.1
-        self.robot_radius = 1.0
+        self.robot_radius = 2
 
 def motion(x, u, dt):
     x[2] += u[1] * dt

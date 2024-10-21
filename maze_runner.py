@@ -36,7 +36,7 @@ class MazeGenerator:
             i = np.random.randint(1, self.height - 1)
             j = np.random.randint(1, self.width - 1)
             if maze[i, j] == 0 and (j, i) != self.start and (j, i) != self.goal:
-                radius = 1.5
+                radius = 0.5
                 obstacles.append((j, i, radius))
                 maze[i, j] = 1
                 added_obstacles += 1
@@ -100,12 +100,13 @@ def save_all_mazes(maze_gen, filename):
     plt.savefig(filename, dpi=300, bbox_inches='tight')
     plt.close(fig)
 
-def run_simulation_astar_dwa(maze, obstacles, start, goal, num_runs=10,visualize=False):
+def run_simulation_astar_dwa(maze, obstacles, start, goal, num_runs=10, visualize=False):
     resolution = 1.0
-    robot_radius = 1.5
+    robot_radius = 2
     max_speed = 1.0
+    map_height, map_width = maze.shape
 
-    agent = AStarDWAAgent(obstacles, resolution, robot_radius, max_speed)
+    agent = AStarDWAAgent(obstacles, resolution, robot_radius, max_speed, map_width, map_height)
 
     total_path_length = 0
     total_time = 0
@@ -135,13 +136,15 @@ def run_simulation_astar_dwa(maze, obstacles, start, goal, num_runs=10,visualize
         avg_path_length = 0
         avg_time = 0
 
-    return avg_path_length, avg_time, best_trajectory
+    if best_trajectory is None:
+        best_trajectory = np.array([start])  
 
+    return avg_path_length, avg_time, best_trajectory
 def run_simulation_custom_astar(maze, obstacles, start, goal, num_runs=10, visualize=False):
     grid_size = 1.0
     robot_radius = 1.5
 
-    agent = CustomAStarAgent(grid_size, robot_radius)
+    agent = CustomAStarAgent(grid_size, robot_radius,50,50)
 
     total_path_length = 0
     total_time = 0
@@ -227,7 +230,7 @@ def main():
     maze_gen = MazeGenerator(50, 50)
     algorithms = [
         ("CustomAStar", run_simulation_custom_astar),
-        ("AstarDWA",run_simulation_astar_dwa)
+        ("AstarDWA",run_simulation_astar_dwa),
         ("DWA",run_simulation_dwa)
     ]
 

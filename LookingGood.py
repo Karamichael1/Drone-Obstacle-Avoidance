@@ -10,11 +10,11 @@ from customastar import CustomAStar, CustomAStarAgent
 show_animation = True
 
 class AStarDWAAgent:
-    def __init__(self, static_obstacles, resolution, robot_radius, max_speed):
+    def __init__(self, static_obstacles, resolution, robot_radius, max_speed, map_width, map_height):
         self.static_obstacles = static_obstacles
         self.resolution = resolution
         self.robot_radius = robot_radius
-        self.custom_astar = CustomAStarAgent(resolution, robot_radius)
+        self.custom_astar = CustomAStarAgent(resolution, robot_radius, map_width, map_height)
         self.dwa_config = Config()
         self.dwa_config.robot_type = RobotType.circle
         self.dwa_config.robot_radius = robot_radius
@@ -27,7 +27,7 @@ class AStarDWAAgent:
         
         path = self.custom_astar.plan_path(start, goal, self.static_obstacles)
         if not path:
-            print("No initial CustomA* path found. Defaulting to DWA.")
+            print("No initial CustomA* path found. Defaulting to pure DWA.")
             path = None
         else:
             rx, ry = zip(*path)
@@ -81,14 +81,15 @@ class AStarDWAAgent:
                     target_ind = 0
                     in_dwa_mode = False
                     print("Found new CustomA* path. Switching back to CustomA*.")
+                else:
+                    print("Failed to find CustomA* path. Continuing with DWA.")
             
             if show_animation:
                 self.plot_state(x, goal, rx if path else None, ry if path else None, predicted_trajectory, current_obstacles, in_dwa_mode)
             
             time += self.dwa_config.dt
-        
         return trajectory
-
+     
     def check_collision(self, position, obstacles):
         for obs in obstacles:
             if math.hypot(position[0] - obs[0], position[1] - obs[1]) <= self.collision_check_distance:
