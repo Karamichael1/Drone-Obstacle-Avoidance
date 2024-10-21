@@ -105,8 +105,6 @@ def run_simulation_custom_astar(maze, start, goal, num_runs=10):
 
     return avg_path_length, avg_time, best_trajectory
 
-
-
 def run_simulation_dwa(maze, start, goal, num_runs=10):
     config = Config()
     config.robot_radius = 1
@@ -120,31 +118,22 @@ def run_simulation_dwa(maze, start, goal, num_runs=10):
     best_trajectory = None
     best_path_length = float('inf')
 
-    timeout_limit = 90  # 60 seconds timeout
+    timeout_limit = 60  # 60 seconds timeout
 
     for run_index in range(num_runs):
         print(f"\nStarting run {run_index + 1}/{num_runs}")
         
         start_time = time.time()
-        x = np.array(list(start) + [0.0, 0.0, 0.0])  # Robot initial state
+        x = np.array(list(start) + [0.0, 0.0, 0.0])
         trajectory = np.array([x])
 
         while True:
-            current_time = time.time()
-            elapsed_time = current_time - start_time
-
-            # Check if the timeout has been exceeded
-            if elapsed_time > timeout_limit:
-                print(f"Run {run_index + 1} exceeded {timeout_limit} seconds, moving to next run.")
-                break
-
             u, _ = dwa_control(x, config, goal, ob)
             x = motion(x, u, config.dt)
             trajectory = np.vstack((trajectory, x))
 
             dist_to_goal = np.hypot(x[0] - goal[0], x[1] - goal[1])
             if dist_to_goal <= config.robot_radius:
-                print("Goal reached!")
                 break
 
         end_time = time.time()
@@ -160,10 +149,7 @@ def run_simulation_dwa(maze, start, goal, num_runs=10):
     avg_path_length = total_path_length / num_runs
     avg_time = total_time / num_runs
 
-    
     return avg_path_length, avg_time, best_trajectory
-
-
 
 def main():
     maze_gen = MazeGenerator(50, 50)
