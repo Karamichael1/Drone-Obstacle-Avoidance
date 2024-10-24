@@ -1,8 +1,10 @@
 import math
+
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
 from heapq import heappush, heappop
+import time
 
 class Node:
     def __init__(self, pos, g_cost, h_cost, parent):
@@ -15,15 +17,35 @@ class Node:
     def __lt__(self, other):
         return self.f_cost < other.f_cost or (self.f_cost == other.f_cost and self.h_cost < other.h_cost)
 
+class Config:
+    def __init__(self):
+        self.max_speed = 1.0
+        self.min_speed = -0.5
+        self.max_yawrate = 40.0 * math.pi / 180.0
+        self.max_accel = 0.2
+        self.max_dyawrate = 40.0 * math.pi / 180.0
+        self.dt = 0.1
+        self.robot_radius = 1.5
+
+def motion(x, u, dt):
+    x[2] += u[1] * dt
+    x[0] += u[0] * math.cos(x[2]) * dt
+    x[1] += u[0] * math.sin(x[2]) * dt
+    x[3] = u[0]
+    x[4] = u[1]
+    return x
+
 class CustomAStar:
-    def __init__(self, grid_size, robot_radius,map_width, map_height):
+    def __init__(self, grid_size, robot_radius, map_width, map_height):
         self.grid_size = grid_size
         self.robot_radius = robot_radius
         self.map_width = map_width
         self.map_height = map_height
         self.directions = [(0, 1), (1, 0), (0, -1), (-1, 0),
-                           (1, 1), (1, -1), (-1, 1), (-1, -1)]
+                          (1, 1), (1, -1), (-1, 1), (-1, -1)]
         self.obstacle_influence_distance = 2 * robot_radius
+        self.config = Config()
+
     def plan(self, start, goal, obstacles, visualize=False):
         self.obstacle_set = set((round(obs[0]/self.grid_size), round(obs[1]/self.grid_size)) 
                                 for obs in obstacles)
@@ -113,7 +135,7 @@ class CustomAStar:
 
     
     def heuristic(self, node, goal, obstacles):
-        base_cost = math.sqrt((node[0] - goal[0])**2 + (node[1] - goal[1])**2)
+        base_cost = abs(node[0] - goal[0]) + abs(node[1] - goal[1])
         
         penalty = 0
         node_pos = np.array(node)
@@ -124,7 +146,7 @@ class CustomAStar:
             if distance < self.obstacle_influence_distance:
                 penalty += (self.obstacle_influence_distance - distance) / self.obstacle_influence_distance
         
-        penalty_weight = 5.0
+        penalty_weight = 10.0
         return base_cost + penalty_weight * penalty
     def get_neighbors(self, pos):
         x, y = pos
@@ -142,23 +164,35 @@ class CustomAStar:
             path.append((node.pos[0] * self.grid_size, node.pos[1] * self.grid_size))
             node = node.parent
         return list(reversed(path))
-class CustomAStarAgent:
-    def __init__(self, grid_size, robot_radius,map_width, map_height):
-        self.astar = CustomAStar(grid_size, robot_radius,map_width, map_height)
-        self.config = Config()
-
-    def plan_path(self, start, goal, obstacles, visualize=False):
-        return self.astar.plan(start, goal, obstacles, visualize)
-
-    def move_to_goal(self, start, goal, path, obstacles):
+    def simulate_path_traversal(self, start, goal, path, obstacles, visualize=False):
         if not path:
-            print("No path found!")
             return np.array([start])
 
-        x = np.array(start + [math.pi / 8.0, 0.0, 0.0])
+        # Initialize robot state [x, y, yaw, velocity, angular_velocity]
+        x = np.array([start[0], start[1], math.pi / 8.0, 0.0, 0.0])
         trajectory = np.array([x])
-
+        
         target_ind = 0
+        
+        if visualize:
+            fig, ax = plt.subplots(figsize=(10, 10))
+            ax.set_xlim(0, self.map_width)
+            ax.set_ylim(0, self.map_height)
+            
+            # Plot obstacles
+            for obs in obstacles:
+                circle = plt.Circle((obs[0], obs[1]), obs[2], fill=True, color='red', alpha=0.5)
+                ax.add_artist(circle)
+            
+            # Plot path
+            path_x, path_y = zip(*path)
+            ax.plot(path_x, path_y, 'b--', alpha=0.7)
+            
+            # Plot start and goal
+            ax.plot(start[0], start[1], 'go', markersize=10, label='Start')
+            ax.plot(goal[0], goal[1], 'ro', markersize=10, label='Goal')
+            ax.legend()
+
         while target_ind < len(path):
             tx, ty = path[target_ind]
             dist_to_target = math.hypot(x[0] - tx, x[1] - ty)
@@ -168,34 +202,47 @@ class CustomAStarAgent:
                 if target_ind >= len(path):
                     break
 
+            # Calculate steering angle
             target_angle = math.atan2(ty - x[1], tx - x[0])
             steering = self.proportional_control(target_angle, x[2])
 
+            # Apply control
             u = np.array([self.config.max_speed, steering])
             x = motion(x, u, self.config.dt)
             trajectory = np.vstack((trajectory, x))
 
-        print("Goal reached!")
+            if visualize:
+                plt.cla()
+                # Redraw obstacles
+                for obs in obstacles:
+                    circle = plt.Circle((obs[0], obs[1]), obs[2], fill=True, color='red', alpha=0.5)
+                    ax.add_artist(circle)
+                
+                # Plot path and current position
+                ax.plot(path_x, path_y, 'b--', alpha=0.7)
+                ax.plot(trajectory[:, 0], trajectory[:, 1], 'g-')
+                ax.plot(x[0], x[1], 'go', markersize=10)
+                ax.plot(goal[0], goal[1], 'ro', markersize=10)
+                
+                ax.set_xlim(0, self.map_width)
+                ax.set_ylim(0, self.map_height)
+                plt.pause(0.001)
+
+        if visualize:
+            plt.close()
+
         return trajectory
 
     def proportional_control(self, target_angle, current_angle):
         return self.config.max_yawrate * math.atan2(math.sin(target_angle - current_angle),
-                                                    math.cos(target_angle - current_angle))
+                                                   math.cos(target_angle - current_angle))
 
-class Config:
-    def __init__(self):
-        self.max_speed = 1.0
-        self.min_speed = -0.5
-        self.max_yawrate = 40.0 * math.pi / 180.0
-        self.max_accel = 0.2
-        self.max_dyawrate = 40.0 * math.pi / 180.0
-        self.dt = 0.1
-        self.robot_radius = 2
+class CustomAStarAgent:
+    def __init__(self, grid_size, robot_radius, map_width, map_height):
+        self.astar = CustomAStar(grid_size, robot_radius, map_width, map_height)
 
-def motion(x, u, dt):
-    x[2] += u[1] * dt
-    x[0] += u[0] * math.cos(x[2]) * dt
-    x[1] += u[0] * math.sin(x[2]) * dt
-    x[3] = u[0]
-    x[4] = u[1]
-    return x
+    def plan_path(self, start, goal, obstacles, visualize=False):
+        return self.astar.plan(start, goal, obstacles, visualize)
+
+    def move_to_goal(self, start, goal, path, obstacles, visualize=False):
+        return self.astar.simulate_path_traversal(start, goal, path, obstacles, visualize)

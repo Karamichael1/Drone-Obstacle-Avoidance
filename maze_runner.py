@@ -140,11 +140,13 @@ def run_simulation_astar_dwa(maze, obstacles, start, goal, num_runs=10, visualiz
         best_trajectory = np.array([start])  
 
     return avg_path_length, avg_time, best_trajectory
-def run_simulation_custom_astar(maze, obstacles, start, goal, num_runs=10, visualize=False):
+
+def run_simulation_custom_astar(maze, obstacles, start, goal, num_runs=10, visualize=True):
     grid_size = 1.0
     robot_radius = 1.5
+    map_height, map_width = maze.shape
 
-    agent = CustomAStarAgent(grid_size, robot_radius,50,50)
+    agent = CustomAStarAgent(grid_size, robot_radius, map_width, map_height)
 
     total_path_length = 0
     total_time = 0
@@ -153,22 +155,24 @@ def run_simulation_custom_astar(maze, obstacles, start, goal, num_runs=10, visua
 
     for run in range(num_runs):
         print(f"Run {run + 1}/{num_runs}")
-        start_time = time.time()
-        path = agent.plan_path(start, goal, obstacles, visualize=(visualize and run == 0))  # Visualize only the first run
+        path = agent.plan_path(start, goal, obstacles)
+        
         if path:
-            trajectory = agent.move_to_goal(list(start), list(goal), path, obstacles)
+            start_time = time.time()
+            # Always simulate the path traversal, visualize if requested
+            trajectory = agent.move_to_goal(start, goal, path, obstacles, visualize=visualize)
+            end_time = time.time()
+            
+            path_length = np.sum(np.sqrt(np.sum(np.diff(trajectory[:, :2], axis=0)**2, axis=1)))
+            total_path_length += path_length
+            total_time += end_time - start_time
+
+            if path_length < best_path_length:
+                best_path_length = path_length
+                best_trajectory = trajectory
         else:
             print("No path found!")
             trajectory = np.array([start])
-        end_time = time.time()
-
-        path_length = np.sum(np.sqrt(np.sum(np.diff(trajectory[:, :2], axis=0)**2, axis=1)))
-        total_path_length += path_length
-        total_time += end_time - start_time
-
-        if path_length < best_path_length:
-            best_path_length = path_length
-            best_trajectory = trajectory
 
     avg_path_length = total_path_length / num_runs
     avg_time = total_time / num_runs
