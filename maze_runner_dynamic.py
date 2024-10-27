@@ -48,24 +48,6 @@ class MazeGenerator:
                         for dy in range(-buffer, buffer+1):
                             if (0 <= x+dx < self.width and 0 <= y+dy < self.height):
                                 maze[y+dy, x+dx] = 0
-
-        added_obstacles = 0
-        max_attempts = 1000
-        attempts = 0
-        
-        while added_obstacles < obstacle_count and attempts < max_attempts:
-            i = np.random.randint(1, self.height - 1)
-            j = np.random.randint(1, self.width - 1)
-            
-            if (maze[i, j] == 0 and (j, i) != self.start and (j, i) != self.goal):
-                radius = 0.5
-                obstacles.append((j, i, radius))
-                maze[i, j] = 1
-                added_obstacles += 1
-            attempts += 1
-
-        maze[self.start[1], self.start[0]] = 0
-        maze[self.goal[1], self.goal[0]] = 0
         return maze, obstacles
 
     def get_maze(self, difficulty):

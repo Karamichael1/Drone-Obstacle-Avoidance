@@ -14,7 +14,7 @@ class RobotType(Enum):
     rectangle = 1
 
 class MazeGenerator:
-    def __init__(self, width, height, start=(5, 5), goal=(46, 46)):
+    def __init__(self, width, height, start=(4, 4), goal=(46, 46)):
         self.width = width
         self.height = height
         self.start = start
@@ -25,18 +25,8 @@ class MazeGenerator:
         maze = np.zeros((self.height, self.width))
         obstacles = []
 
-        # Add boundary walls and convert them to obstacles
+        # Add boundary walls
         maze[0, :] = maze[-1, :] = maze[:, 0] = maze[:, -1] = 1
-        
-        # Add wall obstacles (top and bottom walls)
-        for x in range(self.width):
-            obstacles.append((x, 0, 0.5))  # Top wall
-            obstacles.append((x, self.height - 1, 0.5))  # Bottom wall
-        
-        # Add wall obstacles (left and right walls)
-        for y in range(self.height):
-            obstacles.append((0, y, 0.5))  # Left wall
-            obstacles.append((self.width - 1, y, 0.5))  # Right wall
 
         # Place random circular obstacles
         added_obstacles = 0
@@ -54,6 +44,8 @@ class MazeGenerator:
         maze[self.goal[1], self.goal[0]] = 0
 
         return maze, obstacles
+
+
 
     def get_maze(self, difficulty):
         if 1 <= difficulty <= 10:
