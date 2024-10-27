@@ -14,7 +14,7 @@ class RobotType(Enum):
     rectangle = 1
 
 class MazeGenerator:
-    def __init__(self, width, height, start=(4, 4), goal=(46, 46)):
+    def __init__(self, width, height, start=(5, 5), goal=(46, 46)):
         self.width = width
         self.height = height
         self.start = start
