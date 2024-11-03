@@ -47,16 +47,16 @@ class Config:
         self.v_resolution = 0.005  # [m/s]
         self.yaw_rate_resolution = 0.5 * math.pi / 180.0  # [rad/s]
         self.dt = 0.1  # [s] Time tick for motion prediction
-        self.predict_time = 3.0  # [s]
-        self.to_goal_cost_gain = 2
+        self.predict_time = 2.0  # [s]
+        self.to_goal_cost_gain = 3
         self.speed_cost_gain = 0.9
-        self.obstacle_cost_gain = 5
+        self.obstacle_cost_gain =8
         self.robot_stuck_flag_cons = 0.001  # constant to prevent robot stucked
         self.robot_type = RobotType.circle
 
         # if robot_type == RobotType.circle
         # Also used to check if goal is reached in both types
-        self.robot_radius = 1.0  # [m] for collision check
+        self.robot_radius = 2.0  # [m] for collision check
 
         # if robot_type == RobotType.rectangle
         self.robot_width = 0.5  # [m] for collision check

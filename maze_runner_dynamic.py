@@ -6,7 +6,7 @@ from enum import Enum
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from LookingGoodv2 import AStarDWAAgent
+from LookingGood import AStarDWAAgent
 from customastar import CustomAStarAgent
 from dynamicwindow2D import Config, dwa_control, motion
 
@@ -34,7 +34,7 @@ class MazeGenerator:
             {'x': 20, 'y': 25, 'vx': 0.05, 'vy': 0.0, 'radius': 0.5},
             {'x': 27, 'y': 15, 'vx': 0.0, 'vy': 0.05, 'radius': 0.5},
             {'x': 30, 'y': 15, 'vx': -0.05, 'vy': -0.05, 'radius': 0.5},
-            {'x': 30, 'y': 30, 'vx': 0.05, 'vy':-0.05, 'radius': 0.5},
+            {'x': 28, 'y': 30, 'vx': 0.05, 'vy':-0.05, 'radius': 0.5},
             {'x': 5, 'y': 25, 'vx': 0.05, 'vy':0.05, 'radius': 0.5},
             {'x': 25, 'y': 25, 'vx': 0.05, 'vy': 0.05, 'radius':0.5},
             {'x': 40, 'y': 5, 'vx': 0.0, 'vy': 0.05, 'radius': 0.5},
@@ -452,13 +452,12 @@ def run_simulation_custom_astar(maze, obstacles, start, goal, dynamic_obstacles,
 
 def run_simulation_astar_dwa(maze, obstacles, start, goal, dynamic_obstacles, num_runs=10, visualize=False):
     resolution = 1.0
-    robot_radius = 2.0
+    robot_radius = 2.5  
     max_speed = 1.0
-    replot_interval = 4.0
     map_height, map_width = maze.shape
     config = Config()
     
-    wall_obstacles = [(x, y, r) for x, y, r in convert_walls_to_obstacles(maze)]
+    wall_obstacles = convert_walls_to_obstacles(maze)
     all_static_obstacles = obstacles + wall_obstacles
     
     total_path_length = 0
@@ -469,103 +468,27 @@ def run_simulation_astar_dwa(maze, obstacles, start, goal, dynamic_obstacles, nu
 
     for run in range(num_runs):
         print(f"\nStarting A*-DWA run {run + 1}/{num_runs}")
+        start_time = time.time()
         simulation_time = 0
-        trajectory_points = [[start[0], start[1]]]  # Initialize with start point
+        trajectory_points = []
         current_pos = list(start)
-        run_complete = False
         
-        agent = None  # Initialize agent outside the loop
-        path = None   # Initialize path outside the loop
-
-        while not run_complete:
-            # Check if goal reached
-            dist_to_goal = np.hypot(current_pos[0] - goal[0], current_pos[1] - goal[1])
-            if dist_to_goal <= robot_radius:
-                print("Goal reached!")
-                successful_runs += 1
-                run_complete = True
-                break
-
-            # Update dynamic obstacle positions
-            current_dynamic_obs = []
-            for obs in dynamic_obstacles:
-                variation = obs['movement_variation']
-                period = variation['period']
-                time_in_cycle = simulation_time % period
-                
-                if time_in_cycle < period / 2:
-                    current_x = obs['x'] + obs['initial_vx'] * time_in_cycle
-                    current_y = obs['y'] + obs['initial_vy'] * time_in_cycle
-                    current_vx = obs['initial_vx']
-                    current_vy = obs['initial_vy']
-                else:
-                    time_in_reverse = time_in_cycle - period / 2
-                    current_x = obs['x'] + obs['initial_vx'] * (period/2) - obs['initial_vx'] * time_in_reverse
-                    current_y = obs['y'] + obs['initial_vy'] * (period/2) - obs['initial_vy'] * time_in_reverse
-                    current_vx = -obs['initial_vx']
-                    current_vy = -obs['initial_vy']
-                
-                current_dynamic_obs.append({
-                    'x': current_x,
-                    'y': current_y,
-                    'vx': current_vx,
-                    'vy': current_vy,
-                    'radius': obs['radius'] * 2.0,  # Double the radius for safety
-                    'color': obs['color'],
-                    'movement_variation': obs['movement_variation'],
-                    'initial_vx': obs['initial_vx'],
-                    'initial_vy': obs['initial_vy']
-                })
-            
-            # Convert current dynamic obstacles to static format
-            current_static_obs = [(x['x'], x['y'], x['radius']) for x in current_dynamic_obs]
-            all_obstacles = all_static_obstacles + current_static_obs
-            
-            # Create new agent if needed
-            if simulation_time % replot_interval == 0 or agent is None:
-                agent = AStarDWAAgent(all_obstacles, resolution, robot_radius, max_speed, map_width, map_height)
-                path = agent.plan_path(current_pos, goal)  # Get initial path
-            
-            if path is None or len(path) < 2:
-                # If no path found, wait and try again
-                simulation_time += config.dt
-                continue
-            
-            # Get next waypoint
-            next_point = path[1]  # Get next point in path
-            
-            # Calculate control inputs using DWA
-            current_state = np.array([current_pos[0], current_pos[1], 0.0, 0.0, 0.0])
-            u, _ = dwa_control(current_state, config, next_point, current_static_obs)
-            
-            # Update position
-            new_state = motion(current_state, u, config.dt)
-            new_pos = [new_state[0], new_state[1]]
-            
-            # Add new position to trajectory
-            trajectory_points.append(new_pos)
-            
-            # Update current position
-            current_pos = new_pos
-            path = path[1:]  # Remove used waypoint
-
-            simulation_time += config.dt
+        agent = AStarDWAAgent(all_static_obstacles, resolution, robot_radius, max_speed, map_width, map_height)
+        trajectory = agent.move_to_goal(start, goal, dynamic_obstacles)
         
-        # Convert trajectory points to numpy array
-        trajectory = np.array(trajectory_points)
-        
-        # Process results for this run
-        if len(trajectory) > 1:
-            path_length = np.sum(np.sqrt(np.sum(np.diff(trajectory, axis=0)**2, axis=1)))
+        if trajectory is not None and len(trajectory) > 1:
+            path_length = np.sum(np.sqrt(np.sum(np.diff(trajectory[:, :2], axis=0)**2, axis=1)))
+            total_path_length += path_length
+            total_time += time.time() - start_time
+            successful_runs += 1
             
             if path_length < best_path_length:
                 best_path_length = path_length
                 best_trajectory = trajectory
-            
-            total_path_length += path_length
-            total_time += simulation_time
+            print(f"Goal reached in run {run + 1}")
+        else:
+            print(f"Run {run + 1} failed to reach goal")
 
-    # Calculate final statistics
     if successful_runs > 0:
         avg_path_length = total_path_length / successful_runs
         avg_time = total_time / successful_runs
@@ -577,47 +500,56 @@ def run_simulation_astar_dwa(maze, obstacles, start, goal, dynamic_obstacles, nu
     print(f"A*-DWA Success rate: {success_rate * 100:.2f}%")
     
     return avg_path_length, avg_time, best_trajectory, success_rate
-    
 def run_simulation_dwa(maze, obstacles, start, goal, dynamic_obstacles, num_runs=10, visualize=False):
     config = Config()
-    config.robot_radius = 1.5
+    config.robot_radius = 2.0  # Same as maze_runner.py
     config.max_speed = 1.0
+    config.obstacle_cost_gain = 8.0
+    config.to_goal_cost_gain = 3.0
+    config.predict_time = 2.0
     
+    # Convert static wall boundaries and obstacles
     wall_obstacles = convert_walls_to_obstacles(maze)
     all_obstacles = obstacles + wall_obstacles
-    static_ob = np.array([[obs[0], obs[1]] for obs in all_obstacles])
     
     total_path_length = 0
     total_time = 0
     successful_runs = 0
     best_trajectory = None
     best_path_length = float('inf')
-    timeout_limit = 90
+  
 
     for run_index in range(num_runs):
         print(f"\nStarting DWA run {run_index + 1}/{num_runs}")
         
         start_time = time.time()
-        # Initialize state: x, y, yaw, velocity, angular velocity
-        x = np.array([start[0], start[1], 0.0, 0.0, 0.0])
-        trajectory = np.array([[x[0], x[1]]])  # Store only x,y coordinates
+        # Initialize state with angle pointing towards goal
+        initial_angle = math.atan2(goal[1] - start[1], goal[0] - start[0])
+        x = np.array([start[0], start[1], initial_angle, 0.0, 0.0])
+        trajectory = np.array([[x[0], x[1]]])
         simulation_time = 0
 
-        while True:
-            # Get current dynamic obstacle positions
-            current_obstacles = static_ob.copy()
+        while True:   
+            # Get current static obstacles
+            static_ob = np.array([[obs[0], obs[1]] for obs in all_obstacles])
+            
+            # Add current positions of dynamic obstacles
             for obs in dynamic_obstacles:
                 current_x = obs['x'] + obs['vx'] * simulation_time
                 current_y = obs['y'] + obs['vy'] * simulation_time
-                current_obstacles = np.vstack((current_obstacles, [current_x, current_y]))
+                # Add multiple points around dynamic obstacle for better detection
+                angles = np.linspace(0, 2*np.pi, 8)
+                for angle in angles:
+                    obs_x = current_x + obs['radius'] * np.cos(angle)
+                    obs_y = current_y + obs['radius'] * np.sin(angle)
+                    static_ob = np.vstack((static_ob, [obs_x, obs_y]))
             
             # DWA control
-            u, _ = dwa_control(x, config, goal, current_obstacles)
+            u, predicted_trajectory = dwa_control(x, config, goal, static_ob)
+            
+            # Update robot state
             x = motion(x, u, config.dt)
-            
-            # Append new position to trajectory
             trajectory = np.vstack((trajectory, [x[0], x[1]]))
-            
             simulation_time += config.dt
             
             # Check if goal reached
@@ -627,23 +559,36 @@ def run_simulation_dwa(maze, obstacles, start, goal, dynamic_obstacles, num_runs
                 successful_runs += 1
                 break
             
-            # Check timeout
-            if time.time() - start_time > timeout_limit:
-                print(f"Run {run_index + 1} timed out")
+            # Check collision with current dynamic obstacles
+            collision = False
+            robot_pos = np.array([x[0], x[1]])
+            for obs in dynamic_obstacles:
+                current_x = obs['x'] + obs['vx'] * simulation_time
+                current_y = obs['y'] + obs['vy'] * simulation_time
+                obs_pos = np.array([current_x, current_y])
+                dist = np.linalg.norm(robot_pos - obs_pos)
+                if dist <= (config.robot_radius + obs['radius']):
+                    collision = True
+                    break
+            
+            if collision:
+                print(f"Collision detected in run {run_index + 1}")
                 break
 
         end_time = time.time()
-        path_length = np.sum(np.sqrt(np.sum(np.diff(trajectory, axis=0)**2, axis=1)))
         
-        total_path_length += path_length
-        total_time += end_time - start_time
-        
-        if path_length < best_path_length:
-            best_path_length = path_length
-            best_trajectory = trajectory
+        # Only count successful runs
+        if not collision :
+            path_length = np.sum(np.sqrt(np.sum(np.diff(trajectory, axis=0)**2, axis=1)))
+            total_path_length += path_length
+            total_time += end_time - start_time
+            
+            if path_length < best_path_length:
+                best_path_length = path_length
+                best_trajectory = trajectory
 
-    avg_path_length = total_path_length / num_runs if successful_runs > 0 else float('inf')
-    avg_time = total_time / num_runs if successful_runs > 0 else float('inf')
+    avg_path_length = total_path_length / successful_runs if successful_runs > 0 else float('inf')
+    avg_time = total_time / successful_runs if successful_runs > 0 else float('inf')
     success_rate = successful_runs / num_runs
     
     print(f"DWA Success rate: {success_rate * 100:.2f}%")
@@ -709,8 +654,8 @@ def save_maze_image_with_trajectory(maze, obstacles, dynamic_obstacles, start, g
 def main():
     maze_gen = MazeGenerator(50, 50)
     algorithms = [
-        # ("CustomAStar", run_simulation_custom_astar),
-        ("AstarDWA", run_simulation_astar_dwa),
+        #("CustomAStar", run_simulation_custom_astar),
+        #("AstarDWA", run_simulation_astar_dwa),
         ("DWA", run_simulation_dwa)
     ]
     save_all_mazes(maze_gen, 'all_generated_mazes.png')
