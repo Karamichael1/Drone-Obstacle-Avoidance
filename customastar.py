@@ -242,6 +242,7 @@ class CustomAStarAgent:
         self.astar = CustomAStar(grid_size, robot_radius, map_width, map_height)
 
     def plan_path(self, start, goal, obstacles, visualize=False):
+        print(f"Planning path - Start: {start}, Goal: {goal}, Number of obstacles: {len(obstacles)}")
         return self.astar.plan(start, goal, obstacles, visualize)
 
     def move_to_goal(self, start, goal, path, obstacles, visualize=False):

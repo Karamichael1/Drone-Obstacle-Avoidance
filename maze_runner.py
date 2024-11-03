@@ -233,9 +233,9 @@ def run_simulation_dwa(maze, obstacles, start, goal, num_runs=10,visualize=False
 def main():
     maze_gen = MazeGenerator(50, 50)
     algorithms = [
-        ("CustomAStar", run_simulation_custom_astar),
-        ("AstarDWA",run_simulation_astar_dwa),
-        ("DWA",run_simulation_dwa)
+        # ("CustomAStar", run_simulation_custom_astar),
+        # ("AstarDWA",run_simulation_astar_dwa),
+        # ("DWA",run_simulation_dwa)
     ]
 
     for algo_name, algo_func in algorithms:

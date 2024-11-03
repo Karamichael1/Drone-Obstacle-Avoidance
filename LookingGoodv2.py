@@ -21,9 +21,9 @@ class AStarDWAAgent:
         self.dwa_config.robot_type = RobotType.circle
         self.dwa_config.robot_radius = robot_radius
         self.dwa_config.max_speed = max_speed
-        self.replan_interval = 1.0  # Replan every second
-        self.prediction_horizon = 2.0  # Look ahead 2 seconds
-        self.dwa_activation_distance = robot_radius * 3  # Distance to switch to DWA
+        self.replan_interval = 5  # Replan 
+        self.prediction_horizon = 3.0  # Look ahead 2 seconds
+        self.dwa_activation_distance = robot_radius * 1  # Distance to switch to DWA
         self.map_width = map_width
         self.map_height = map_height
 
@@ -64,6 +64,7 @@ class AStarDWAAgent:
         return current
 
     def move_to_goal(self, start, goal, dynamic_obstacles):
+        print(f"Starting navigation from {start} to {goal}")
         x = np.array(list(start) + [math.pi / 8.0, 0.0, 0.0])
         trajectory = np.array([x])
         current_path = None
@@ -72,23 +73,26 @@ class AStarDWAAgent:
         in_dwa_mode = False
 
         while True:
+            dist_to_goal = math.hypot(x[0] - goal[0], x[1] - goal[1])
+            
+            if simulation_time % 5.0 == 0:  # Print every 5 seconds
+                print(f"Time: {simulation_time:.1f}s, Distance to goal: {dist_to_goal:.2f}, Mode: {'DWA' if in_dwa_mode else 'A*'}")
+
             current_pos = x[:2]
             current_obstacles = self.get_current_obstacles(dynamic_obstacles, simulation_time)
             
-            # Check if we need to replan
+            # Less frequent replanning checks
             need_replan = (simulation_time - last_replan_time >= self.replan_interval or 
-                         current_path is None or 
-                         not self.check_path_safety(current_path, dynamic_obstacles, simulation_time))
+                        current_path is None)  # Removed path safety check to reduce computation
 
             if need_replan and not in_dwa_mode:
+                print(f"Replanning at time {simulation_time}")
                 new_path = self.custom_astar.plan_path(tuple(current_pos), goal, current_obstacles)
                 if new_path:
                     current_path = new_path
                     last_replan_time = simulation_time
                 else:
                     in_dwa_mode = True
-                    print("Switching to DWA mode - no valid A* path found")
-
             # Convert dynamic obstacles for DWA
             dwa_obstacles = []
             for obs in current_obstacles:
@@ -101,32 +105,36 @@ class AStarDWAAgent:
                 for obs in current_obstacles:
                     dist = math.hypot(current_pos[0] - obs[0], current_pos[1] - obs[1])
                     if dist < self.dwa_activation_distance:
+                        print(f"Obstacle too close ({dist}), switching to DWA")
                         use_dwa = True
                         break
 
             # Execute movement
-            if use_dwa:
-                u, _ = dwa_control(x, self.dwa_config, goal, dwa_obstacles)
-                # Try to find A* path periodically while in DWA mode
-                if simulation_time - last_replan_time >= self.replan_interval:
-                    test_path = self.custom_astar.plan_path(tuple(current_pos), goal, current_obstacles)
-                    if test_path and self.check_path_safety(test_path, dynamic_obstacles, simulation_time):
-                        current_path = test_path
-                        in_dwa_mode = False
-                        print("Switching back to A* mode")
-            else:
-                # Follow A* path
-                target_idx = min(range(len(current_path)), key=lambda i: 
-                    math.hypot(current_path[i][0] - current_pos[0],
-                             current_path[i][1] - current_pos[1]))
-                target_idx = min(target_idx + 1, len(current_path) - 1)
-                target = current_path[target_idx]
-                
-                # Simple proportional control for path following
-                angle = math.atan2(target[1] - x[1], target[0] - x[0])
-                speed = min(self.dwa_config.max_speed, 
-                          math.hypot(target[0] - x[0], target[1] - x[1]))
-                u = np.array([speed, angle - x[2]])
+            try:
+                if use_dwa:
+                    print("Using DWA control")
+                    u, _ = dwa_control(x, self.dwa_config, goal, dwa_obstacles)
+                    if simulation_time - last_replan_time >= self.replan_interval:
+                        test_path = self.custom_astar.plan_path(tuple(current_pos), goal, current_obstacles)
+                        if test_path and self.check_path_safety(test_path, dynamic_obstacles, simulation_time):
+                            current_path = test_path
+                            in_dwa_mode = False
+                            print("Switching back to A* mode")
+                else:
+                    print("Following A* path")
+                    target_idx = min(range(len(current_path)), key=lambda i: 
+                        math.hypot(current_path[i][0] - current_pos[0],
+                                current_path[i][1] - current_pos[1]))
+                    target_idx = min(target_idx + 1, len(current_path) - 1)
+                    target = current_path[target_idx]
+                    
+                    angle = math.atan2(target[1] - x[1], target[0] - x[0])
+                    speed = min(self.dwa_config.max_speed, 
+                            math.hypot(target[0] - x[0], target[1] - x[1]))
+                    u = np.array([speed, angle - x[2]])
+            except Exception as e:
+                print(f"Error during movement execution: {e}")
+                break
 
             # Update state
             x = motion(x, u, self.dwa_config.dt)
@@ -134,44 +142,48 @@ class AStarDWAAgent:
             simulation_time += self.dwa_config.dt
 
             # Check if goal is reached
-            dist_to_goal = math.hypot(x[0] - goal[0], x[1] - goal[1])
             if dist_to_goal <= self.resolution:
                 print("Goal reached!")
                 break
 
             # Add timeout condition
-            if simulation_time > 30.0:  # 30 seconds timeout
+            if simulation_time > 140.0:  # 30 seconds timeout
                 print("Timeout reached")
                 break
 
+            # Print state at each iteration
+            if len(trajectory) % 50 == 0:  # Print every 50 iterations
+                print(f"Current position: {current_pos}, Iterations: {len(trajectory)}")
+
         return trajectory
-def update_obstacles(self, time, dynamic_obstacles):
-        current_obstacles = self.static_obstacles.copy()
-        for obs in dynamic_obstacles:
-            x = obs['x'] + obs['vx'] * time
-            y = obs['y'] + obs['vy'] * time
-            current_obstacles.append((x, y, obs['radius']))  
-        return current_obstacles
+      
+    def update_obstacles(self, time, dynamic_obstacles):
+            current_obstacles = self.static_obstacles.copy()
+            for obs in dynamic_obstacles:
+                x = obs['x'] + obs['vx'] * time
+                y = obs['y'] + obs['vy'] * time
+                current_obstacles.append((x, y, obs['radius']))  
+            return current_obstacles
 
-def plot_state(self, x, goal, rx, ry, predicted_trajectory, obstacles, in_dwa_mode):
-        plt.cla()
-        plt.plot(x[0], x[1], "xr")
-        plt.plot(goal[0], goal[1], "xb")
-        if rx and ry:
-            plt.plot(rx, ry, "-r")  # Plot the entire CustomA* path
-        
-        self.plot_obstacles(obstacles)
-        
-        plot_arrow(x[0], x[1], x[2])
-        plt.axis("equal")
-        plt.grid(True)
-        plt.title(f"AStarDWAAgent Navigation ({'DWA' if in_dwa_mode else 'CustomA*'} mode)")
-        plt.pause(0.0001)
+    def plot_state(self, x, goal, rx, ry, predicted_trajectory, obstacles, in_dwa_mode):
+            plt.cla()
+            plt.plot(x[0], x[1], "xr")
+            plt.plot(goal[0], goal[1], "xb")
+            if rx and ry:
+                plt.plot(rx, ry, "-r")  # Plot the entire CustomA* path
+            
+            self.plot_obstacles(obstacles)
+            
+            plot_arrow(x[0], x[1], x[2])
+            plt.axis("equal")
+            plt.grid(True)
+            plt.title(f"AStarDWAAgent Navigation ({'DWA' if in_dwa_mode else 'CustomA*'} mode)")
+            plt.pause(0.0001)
 
-def plot_obstacles(self, obstacles):
-        for obs in obstacles:
-            circle = plt.Circle((obs[0], obs[1]), obs[2], fill=True)
-            plt.gca().add_artist(circle)
+    def plot_obstacles(self, obstacles):
+            for obs in obstacles:
+                circle = plt.Circle((obs[0], obs[1]), obs[2], fill=True)
+                plt.gca().add_artist(circle)
 
 def create_maze(width, height, obstacle_ratio):  
     maze = np.zeros((height, width))
