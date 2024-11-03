@@ -21,9 +21,9 @@ class AStarDWAAgent:
         self.dwa_config.robot_type = RobotType.circle
         self.dwa_config.robot_radius = robot_radius
         self.dwa_config.max_speed = max_speed
-        self.replan_interval = 5  # Replan 
+        self.replan_interval = 4  # Replan 
         self.prediction_horizon = 3.0  # Look ahead 2 seconds
-        self.dwa_activation_distance = robot_radius * 1  # Distance to switch to DWA
+        self.dwa_activation_distance = robot_radius * 1.5  # Distance to switch to DWA
         self.map_width = map_width
         self.map_height = map_height
 
@@ -64,7 +64,7 @@ class AStarDWAAgent:
         return current
 
     def move_to_goal(self, start, goal, dynamic_obstacles):
-        print(f"Starting navigation from {start} to {goal}")
+        #print(f"Starting navigation from {start} to {goal}")
         x = np.array(list(start) + [math.pi / 8.0, 0.0, 0.0])
         trajectory = np.array([x])
         current_path = None
@@ -75,8 +75,8 @@ class AStarDWAAgent:
         while True:
             dist_to_goal = math.hypot(x[0] - goal[0], x[1] - goal[1])
             
-            if simulation_time % 5.0 == 0:  # Print every 5 seconds
-                print(f"Time: {simulation_time:.1f}s, Distance to goal: {dist_to_goal:.2f}, Mode: {'DWA' if in_dwa_mode else 'A*'}")
+            #if simulation_time % 5.0 == 0:  # Print every 5 seconds
+                #print(f"Time: {simulation_time:.1f}s, Distance to goal: {dist_to_goal:.2f}, Mode: {'DWA' if in_dwa_mode else 'A*'}")
 
             current_pos = x[:2]
             current_obstacles = self.get_current_obstacles(dynamic_obstacles, simulation_time)
@@ -86,7 +86,7 @@ class AStarDWAAgent:
                         current_path is None)  # Removed path safety check to reduce computation
 
             if need_replan and not in_dwa_mode:
-                print(f"Replanning at time {simulation_time}")
+                #print(f"Replanning at time {simulation_time}")
                 new_path = self.custom_astar.plan_path(tuple(current_pos), goal, current_obstacles)
                 if new_path:
                     current_path = new_path
@@ -105,23 +105,23 @@ class AStarDWAAgent:
                 for obs in current_obstacles:
                     dist = math.hypot(current_pos[0] - obs[0], current_pos[1] - obs[1])
                     if dist < self.dwa_activation_distance:
-                        print(f"Obstacle too close ({dist}), switching to DWA")
+                        #print(f"Obstacle too close ({dist}), switching to DWA")
                         use_dwa = True
                         break
 
             # Execute movement
             try:
                 if use_dwa:
-                    print("Using DWA control")
+                    #print("Using DWA control")
                     u, _ = dwa_control(x, self.dwa_config, goal, dwa_obstacles)
                     if simulation_time - last_replan_time >= self.replan_interval:
                         test_path = self.custom_astar.plan_path(tuple(current_pos), goal, current_obstacles)
                         if test_path and self.check_path_safety(test_path, dynamic_obstacles, simulation_time):
                             current_path = test_path
                             in_dwa_mode = False
-                            print("Switching back to A* mode")
+                            #print("Switching back to A* mode")
                 else:
-                    print("Following A* path")
+                    #print("Following A* path")
                     target_idx = min(range(len(current_path)), key=lambda i: 
                         math.hypot(current_path[i][0] - current_pos[0],
                                 current_path[i][1] - current_pos[1]))
@@ -147,13 +147,13 @@ class AStarDWAAgent:
                 break
 
             # Add timeout condition
-            if simulation_time > 140.0:  # 30 seconds timeout
-                print("Timeout reached")
-                break
+            # if simulation_time > 140.0:  # 30 seconds timeout
+            #     print("Timeout reached")
+            #     break
 
             # Print state at each iteration
-            if len(trajectory) % 50 == 0:  # Print every 50 iterations
-                print(f"Current position: {current_pos}, Iterations: {len(trajectory)}")
+            #if len(trajectory) % 50 == 0:  # Print every 50 iterations
+             #   print(f"Current position: {current_pos}, Iterations: {len(trajectory)}")
 
         return trajectory
       
