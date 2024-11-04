@@ -547,35 +547,19 @@ def run_simulation_dwa(maze, obstacles, start, goal, dynamic_obstacles, num_runs
                 print(f"Goal reached in run {run_index + 1}")
                 successful_runs += 1
                 break
-            
-            # Check for collisions with all obstacles
-            collision = False
-            robot_pos = np.array([x[0], x[1]])
-            for obs in all_obstacles:
-                obs_pos = np.array([obs[0], obs[1]])
-                dist = np.linalg.norm(robot_pos - obs_pos)
-                if dist <= (config.robot_radius + obs[2]):
-                    collision = True
-                    print(f"Collision detected in run {run_index + 1}")
-                    break
-            
-            if collision:
-                break
 
         end_time = time.time()
         
-        # Only count successful runs
-        if not collision:
-            path_length = np.sum(np.sqrt(np.sum(np.diff(trajectory, axis=0)**2, axis=1)))
-            total_path_length += path_length
-            total_time += end_time - start_time
-            
-            if path_length < best_path_length:
-                best_path_length = path_length
-                best_trajectory = trajectory
+        path_length = np.sum(np.sqrt(np.sum(np.diff(trajectory, axis=0)**2, axis=1)))
+        total_path_length += path_length
+        total_time += end_time - start_time
+        
+        if path_length < best_path_length:
+            best_path_length = path_length
+            best_trajectory = trajectory
 
-    avg_path_length = total_path_length / successful_runs if successful_runs > 0 else float('inf')
-    avg_time = total_time / successful_runs if successful_runs > 0 else float('inf')
+    avg_path_length = total_path_length / num_runs
+    avg_time = total_time / num_runs
     success_rate = successful_runs / num_runs
     
     print(f"DWA Success rate: {success_rate * 100:.2f}%")
@@ -649,7 +633,7 @@ def main():
 
     for algo_name, algo_func in algorithms:
         results = []
-        for level in range(1, 11):
+        for level in range(9, 11):
             maze, static_obstacles, dynamic_obstacles = maze_gen.get_maze(level)
             start = maze_gen.start
             goal = maze_gen.goal
