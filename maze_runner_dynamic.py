@@ -502,7 +502,7 @@ def run_simulation_astar_dwa(maze, obstacles, start, goal, dynamic_obstacles, nu
     return avg_path_length, avg_time, best_trajectory, success_rate
 def run_simulation_dwa(maze, obstacles, start, goal, dynamic_obstacles, num_runs=10, visualize=False):
     config = Config()
-    config.robot_radius = 2.0  # Same as maze_runner.py
+    config.robot_radius = 2.0
     config.max_speed = 1.0
     config.obstacle_cost_gain = 8.0
     config.to_goal_cost_gain = 3.0
@@ -510,14 +510,19 @@ def run_simulation_dwa(maze, obstacles, start, goal, dynamic_obstacles, num_runs
     
     # Convert static wall boundaries and obstacles
     wall_obstacles = convert_walls_to_obstacles(maze)
-    all_obstacles = obstacles + wall_obstacles
+    
+    # Convert dynamic obstacles to static format and add to obstacles
+    static_dynamic_obstacles = [(obs['x'], obs['y'], obs['radius']) for obs in dynamic_obstacles]
+    all_obstacles = obstacles + wall_obstacles + static_dynamic_obstacles
+    
+    # Convert to numpy array format for DWA
+    static_ob = np.array([[obs[0], obs[1]] for obs in all_obstacles])
     
     total_path_length = 0
     total_time = 0
     successful_runs = 0
     best_trajectory = None
     best_path_length = float('inf')
-  
 
     for run_index in range(num_runs):
         print(f"\nStarting DWA run {run_index + 1}/{num_runs}")
@@ -527,30 +532,14 @@ def run_simulation_dwa(maze, obstacles, start, goal, dynamic_obstacles, num_runs
         initial_angle = math.atan2(goal[1] - start[1], goal[0] - start[0])
         x = np.array([start[0], start[1], initial_angle, 0.0, 0.0])
         trajectory = np.array([[x[0], x[1]]])
-        simulation_time = 0
 
         while True:   
-            # Get current static obstacles
-            static_ob = np.array([[obs[0], obs[1]] for obs in all_obstacles])
-            
-            # Add current positions of dynamic obstacles
-            for obs in dynamic_obstacles:
-                current_x = obs['x'] + obs['vx'] * simulation_time
-                current_y = obs['y'] + obs['vy'] * simulation_time
-                # Add multiple points around dynamic obstacle for better detection
-                angles = np.linspace(0, 2*np.pi, 8)
-                for angle in angles:
-                    obs_x = current_x + obs['radius'] * np.cos(angle)
-                    obs_y = current_y + obs['radius'] * np.sin(angle)
-                    static_ob = np.vstack((static_ob, [obs_x, obs_y]))
-            
             # DWA control
             u, predicted_trajectory = dwa_control(x, config, goal, static_ob)
             
             # Update robot state
             x = motion(x, u, config.dt)
             trajectory = np.vstack((trajectory, [x[0], x[1]]))
-            simulation_time += config.dt
             
             # Check if goal reached
             dist_to_goal = np.hypot(x[0] - goal[0], x[1] - goal[1])
@@ -559,26 +548,24 @@ def run_simulation_dwa(maze, obstacles, start, goal, dynamic_obstacles, num_runs
                 successful_runs += 1
                 break
             
-            # Check collision with current dynamic obstacles
+            # Check for collisions with all obstacles
             collision = False
             robot_pos = np.array([x[0], x[1]])
-            for obs in dynamic_obstacles:
-                current_x = obs['x'] + obs['vx'] * simulation_time
-                current_y = obs['y'] + obs['vy'] * simulation_time
-                obs_pos = np.array([current_x, current_y])
+            for obs in all_obstacles:
+                obs_pos = np.array([obs[0], obs[1]])
                 dist = np.linalg.norm(robot_pos - obs_pos)
-                if dist <= (config.robot_radius + obs['radius']):
+                if dist <= (config.robot_radius + obs[2]):
                     collision = True
+                    print(f"Collision detected in run {run_index + 1}")
                     break
             
             if collision:
-                print(f"Collision detected in run {run_index + 1}")
                 break
 
         end_time = time.time()
         
         # Only count successful runs
-        if not collision :
+        if not collision:
             path_length = np.sum(np.sqrt(np.sum(np.diff(trajectory, axis=0)**2, axis=1)))
             total_path_length += path_length
             total_time += end_time - start_time
